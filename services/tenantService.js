@@ -1,11 +1,9 @@
 const { supabase, isConfigured } = require('../config/supabase');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-// Local fallback store in case Supabase is not yet connected
 const LOCAL_STORE_FILE = path.join(__dirname, '../data/local_store.json');
-
-// In-Memory cache for low-latency webhook lookups
 const tenantCache = new Map();
 
 class TenantService {
@@ -19,11 +17,22 @@ class TenantService {
           waba_id: '987654321098765',
           access_token: 'EAAG_SAMPLE_PERMANENT_TOKEN_POWER_OF_MEDIA',
           verify_token: 'power_of_media_verify_token_2026',
+          portal_key: 'pom_portal_demo_key',
+          portal_pin: '123456',
           status: 'active',
           enable_welcome: true,
           welcome_reply: 'مرحباً بك في وكالة Power of Media! 🎬🚀 نسعد بخدمتك. اكتب "خدماتنا" أو "اسعار" لمعرفة المزيد.',
           enable_fallback: true,
           default_fallback_reply: 'شكراً لتواصلك مع Power of Media. لم نتمكن من فهم طلبك بدقة، وسيتواصل معك فريقنا قريباً. 💬',
+          business_hours: {
+            enabled: false,
+            timezone: 'Africa/Cairo',
+            work_days: [0, 1, 2, 3, 4],
+            start_time: '09:00',
+            end_time: '18:00',
+            off_hours_reply: 'شكراً لتواصلك مع Power of Media! ⏰ مواعيد العمل الرسمية من الأحد إلى الخميس من 9 ص حتى 6 م.'
+          },
+          webhook_forward_url: '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -77,6 +86,29 @@ class TenantService {
           updated_at: new Date().toISOString()
         }
       ],
+      contacts: [
+        {
+          id: 'c0000000-0000-0000-0000-000000000001',
+          tenant_id: 'a0000000-0000-0000-0000-000000000001',
+          phone_number: '201012345678',
+          name: 'أحمد علي',
+          tags: ['VIP', 'مهتم بالإعلانات'],
+          total_messages: 5,
+          last_message_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'c0000000-0000-0000-0000-000000000002',
+          tenant_id: 'a0000000-0000-0000-0000-000000000001',
+          phone_number: '201098765432',
+          name: 'سارة محمد',
+          tags: ['عميل محتمل', 'إنتاج فيديو'],
+          total_messages: 2,
+          last_message_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        }
+      ],
+      broadcasts: [],
       logs: []
     };
 
@@ -92,7 +124,27 @@ class TenantService {
         }
         if (fs.existsSync(LOCAL_STORE_FILE)) {
           const content = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
-          this.memoryData = JSON.parse(content);
+          const parsed = JSON.parse(content);
+          this.memoryData = {
+            ...this.memoryData,
+            ...parsed,
+            tenants: (parsed.tenants || this.memoryData.tenants).map(t => ({
+              ...t,
+              portal_key: t.portal_key || 'pom_portal_demo_key',
+              portal_pin: t.portal_pin || '123456',
+              business_hours: t.business_hours || {
+                enabled: false,
+                timezone: 'Africa/Cairo',
+                work_days: [0, 1, 2, 3, 4],
+                start_time: '09:00',
+                end_time: '18:00',
+                off_hours_reply: 'مواعيد العمل الرسمية من 9:00 ص إلى 6:00 م.'
+              }
+            })),
+            contacts: parsed.contacts || this.memoryData.contacts,
+            broadcasts: parsed.broadcasts || []
+          };
+          this.saveLocalStore();
         } else {
           this.saveLocalStore();
         }
@@ -123,13 +175,9 @@ class TenantService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[TenantService] Error getting all tenants from Supabase:', error.message);
-        throw error;
-      }
+      if (error) throw error;
       return data || [];
     }
-
     return this.memoryData.tenants;
   }
 
@@ -142,23 +190,58 @@ class TenantService {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
+        if (error.code === 'PGRST116') return null;
         throw error;
       }
       return data;
     }
-
     return this.memoryData.tenants.find(t => t.id === id) || null;
+  }
+
+  async getTenantByPortalKey(portalKey) {
+    if (!portalKey) return null;
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('portal_key', portalKey.trim())
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    }
+    return this.memoryData.tenants.find(t => t.portal_key === portalKey.trim()) || null;
+  }
+
+  async authenticatePortal(identifier, pinOrKey) {
+    if (!identifier || !pinOrKey) return null;
+    const cleanPin = String(pinOrKey).trim();
+    const cleanId = String(identifier).trim();
+
+    let tenant = null;
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .or(`id.eq.${cleanId},portal_key.eq.${cleanId}`)
+        .maybeSingle();
+
+      if (data && (data.portal_pin === cleanPin || data.portal_key === cleanPin || data.id === cleanPin)) {
+        tenant = data;
+      }
+    } else {
+      tenant = this.memoryData.tenants.find(
+        t => (t.id === cleanId || t.portal_key === cleanId) && (t.portal_pin === cleanPin || t.portal_key === cleanPin)
+      ) || null;
+    }
+    return tenant;
   }
 
   async getTenantByPhoneNumberId(phoneNumberId) {
     if (!phoneNumberId) return null;
     const cleanId = String(phoneNumberId).trim();
 
-    // Check memory cache first for high performance
     if (tenantCache.has(cleanId)) {
       const cached = tenantCache.get(cleanId);
-      // Cache expires after 60 seconds
       if (Date.now() - cached.timestamp < 60000) {
         return cached.tenant;
       }
@@ -174,9 +257,7 @@ class TenantService {
         .eq('status', 'active')
         .maybeSingle();
 
-      if (error) {
-        console.error(`[TenantService] Error fetching tenant for phone_number_id ${cleanId}:`, error.message);
-      }
+      if (error) console.error(`[TenantService] Supabase error for ${cleanId}:`, error.message);
       tenant = data;
     } else {
       tenant = this.memoryData.tenants.find(
@@ -194,11 +275,13 @@ class TenantService {
   async createTenant(tenantData) {
     const cleanPhoneId = String(tenantData.phone_number_id).trim();
 
-    // Validate uniqueness
     const existing = await this.getTenantByPhoneNumberId(cleanPhoneId);
     if (existing) {
       throw new Error(`A client with WhatsApp Phone Number ID "${cleanPhoneId}" is already registered.`);
     }
+
+    const portalKey = 'pk_' + crypto.randomBytes(6).toString('hex');
+    const portalPin = Math.floor(100000 + Math.random() * 900000).toString();
 
     const payload = {
       name: tenantData.name.trim(),
@@ -206,11 +289,22 @@ class TenantService {
       waba_id: tenantData.waba_id ? String(tenantData.waba_id).trim() : null,
       access_token: tenantData.access_token.trim(),
       verify_token: tenantData.verify_token ? tenantData.verify_token.trim() : null,
+      portal_key: portalKey,
+      portal_pin: portalPin,
       status: tenantData.status || 'active',
       enable_welcome: tenantData.enable_welcome !== undefined ? Boolean(tenantData.enable_welcome) : true,
       welcome_reply: tenantData.welcome_reply || `مرحباً بك! يسعدنا تواصلك مع ${tenantData.name}. كيف يمكننا مساعدتك اليوم؟ 🚀`,
       enable_fallback: tenantData.enable_fallback !== undefined ? Boolean(tenantData.enable_fallback) : true,
-      default_fallback_reply: tenantData.default_fallback_reply || 'شكراً لرسالتك. سيقوم أحد ممثلينا بالرد عليك قريباً.'
+      default_fallback_reply: tenantData.default_fallback_reply || 'شكراً لرسالتك. سيقوم أحد ممثلينا بالرد عليك قريباً.',
+      business_hours: tenantData.business_hours || {
+        enabled: false,
+        timezone: 'Africa/Cairo',
+        work_days: [0, 1, 2, 3, 4],
+        start_time: '09:00',
+        end_time: '18:00',
+        off_hours_reply: `شكراً لتواصلك مع ${tenantData.name}! ⏰ مواعيد العمل الرسمية من الأحد إلى الخميس من 9:00 ص حتى 6:00 م.`
+      },
+      webhook_forward_url: tenantData.webhook_forward_url || ''
     };
 
     if (isConfigured && supabase) {
@@ -224,7 +318,6 @@ class TenantService {
       return data;
     }
 
-    // Local in-memory mode
     const newTenant = {
       id: `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       ...payload,
@@ -237,9 +330,7 @@ class TenantService {
   }
 
   async updateTenant(id, tenantData) {
-    // Invalidate cache
     tenantCache.clear();
-
     const payload = {
       ...tenantData,
       updated_at: new Date().toISOString()
@@ -284,12 +375,13 @@ class TenantService {
     this.memoryData.tenants = this.memoryData.tenants.filter(t => t.id !== id);
     this.memoryData.rules = this.memoryData.rules.filter(r => r.tenant_id !== id);
     this.memoryData.logs = this.memoryData.logs.filter(l => l.tenant_id !== id);
+    this.memoryData.contacts = this.memoryData.contacts.filter(c => c.tenant_id !== id);
     this.saveLocalStore();
     return { success: true };
   }
 
   // ==========================================
-  // Auto-Reply Rules Management
+  // Rules Management
   // ==========================================
 
   async getRulesByTenantId(tenantId) {
@@ -370,11 +462,7 @@ class TenantService {
     };
 
     if (payload.reply_content && typeof payload.reply_content === 'string') {
-      try {
-        payload.reply_content = JSON.parse(payload.reply_content);
-      } catch (e) {
-        // Keep as is if parsing fails
-      }
+      try { payload.reply_content = JSON.parse(payload.reply_content); } catch (e) {}
     }
 
     if (isConfigured && supabase) {
@@ -417,6 +505,210 @@ class TenantService {
   }
 
   // ==========================================
+  // Contacts Management
+  // ==========================================
+
+  async upsertContact(tenantId, phone, name) {
+    if (!tenantId || !phone) return null;
+    const cleanPhone = String(phone).replace(/\D/g, '');
+
+    if (isConfigured && supabase) {
+      try {
+        const { data: existing } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('phone_number', cleanPhone)
+          .maybeSingle();
+
+        if (existing) {
+          const { data } = await supabase
+            .from('contacts')
+            .update({
+              name: name || existing.name,
+              total_messages: (existing.total_messages || 0) + 1,
+              last_message_at: new Date().toISOString()
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          return data;
+        } else {
+          const { data } = await supabase
+            .from('contacts')
+            .insert({
+              tenant_id: tenantId,
+              phone_number: cleanPhone,
+              name: name || 'عميل واتساب',
+              tags: ['عميل جديد'],
+              total_messages: 1,
+              last_message_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          return data;
+        }
+      } catch (err) {
+        console.error('[TenantService] upsertContact error:', err.message);
+      }
+    }
+
+    let contact = this.memoryData.contacts.find(c => c.tenant_id === tenantId && c.phone_number === cleanPhone);
+    if (contact) {
+      contact.name = name || contact.name;
+      contact.total_messages = (contact.total_messages || 0) + 1;
+      contact.last_message_at = new Date().toISOString();
+    } else {
+      contact = {
+        id: `contact_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        tenant_id: tenantId,
+        phone_number: cleanPhone,
+        name: name || 'عميل واتساب',
+        tags: ['عميل جديد'],
+        total_messages: 1,
+        last_message_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      };
+      this.memoryData.contacts.unshift(contact);
+    }
+    this.saveLocalStore();
+    return contact;
+  }
+
+  async getContactsByTenantId(tenantId) {
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('last_message_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    }
+    return this.memoryData.contacts
+      .filter(c => c.tenant_id === tenantId)
+      .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+  }
+
+  async updateContactTags(contactId, tags) {
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('contacts')
+        .update({ tags })
+        .eq('id', contactId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+
+    const contact = this.memoryData.contacts.find(c => c.id === contactId);
+    if (contact) {
+      contact.tags = tags;
+      this.saveLocalStore();
+    }
+    return contact;
+  }
+
+  // ==========================================
+  // Live Chat / Conversations
+  // ==========================================
+
+  async getConversations(tenantId) {
+    const logs = await this.getLogs({ tenant_id: tenantId, limit: 300 });
+    const convMap = new Map();
+
+    for (const log of logs) {
+      const phone = log.sender_phone || log.recipient_phone;
+      if (!phone) continue;
+
+      if (!convMap.has(phone)) {
+        convMap.set(phone, {
+          phone,
+          senderName: log.sender_name || 'Customer',
+          lastMessage: log.message_body || log.response_body || '',
+          lastMessageAt: log.created_at,
+          status: log.status,
+          unreadCount: 0
+        });
+      }
+    }
+
+    return Array.from(convMap.values()).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+  }
+
+  async getConversationMessages(tenantId, phone) {
+    const cleanPhone = String(phone).replace(/\D/g, '');
+
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('message_logs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .or(`sender_phone.eq.${cleanPhone},recipient_phone.eq.${cleanPhone}`)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error) throw error;
+      return data || [];
+    }
+
+    return this.memoryData.logs
+      .filter(l => l.tenant_id === tenantId && (l.sender_phone === cleanPhone || l.recipient_phone === cleanPhone))
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }
+
+  // ==========================================
+  // Broadcast Campaigns
+  // ==========================================
+
+  async createBroadcastCampaign(tenantId, campaignData) {
+    const payload = {
+      tenant_id: tenantId,
+      name: campaignData.name,
+      message_body: campaignData.message_body,
+      target_type: campaignData.target_type || 'all_contacts',
+      total_recipients: campaignData.total_recipients || 0,
+      success_count: campaignData.success_count || 0,
+      failed_count: campaignData.failed_count || 0,
+      status: campaignData.status || 'completed'
+    };
+
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('broadcast_campaigns')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+
+    const campaign = {
+      id: `bc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      ...payload,
+      created_at: new Date().toISOString()
+    };
+    this.memoryData.broadcasts.unshift(campaign);
+    this.saveLocalStore();
+    return campaign;
+  }
+
+  async getBroadcastCampaigns(tenantId) {
+    if (isConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('broadcast_campaigns')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    }
+
+    return this.memoryData.broadcasts.filter(b => b.tenant_id === tenantId);
+  }
+
+  // ==========================================
   // Message Logs & Audit Trail
   // ==========================================
 
@@ -437,6 +729,11 @@ class TenantService {
       raw_payload: logData.raw_payload || null
     };
 
+    // Also upsert contact
+    if (logData.tenant_id && logData.sender_phone && logData.direction === 'inbound') {
+      this.upsertContact(logData.tenant_id, logData.sender_phone, logData.sender_name).catch(() => {});
+    }
+
     if (isConfigured && supabase) {
       try {
         const { data, error } = await supabase
@@ -444,7 +741,6 @@ class TenantService {
           .insert(payload)
           .select()
           .single();
-
         if (error) console.error('[TenantService] Failed to insert log to Supabase:', error.message);
         return data;
       } catch (err) {
@@ -458,9 +754,8 @@ class TenantService {
       created_at: new Date().toISOString()
     };
     this.memoryData.logs.unshift(newLog);
-    // Keep max 200 logs in memory
-    if (this.memoryData.logs.length > 200) {
-      this.memoryData.logs.length = 200;
+    if (this.memoryData.logs.length > 500) {
+      this.memoryData.logs.length = 500;
     }
     this.saveLocalStore();
     return newLog;
@@ -476,15 +771,9 @@ class TenantService {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (filters.tenant_id) {
-        query = query.eq('tenant_id', filters.tenant_id);
-      }
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.phone_number_id) {
-        query = query.eq('phone_number_id', filters.phone_number_id);
-      }
+      if (filters.tenant_id) query = query.eq('tenant_id', filters.tenant_id);
+      if (filters.status) query = query.eq('status', filters.status);
+      if (filters.phone_number_id) query = query.eq('phone_number_id', filters.phone_number_id);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -492,37 +781,33 @@ class TenantService {
     }
 
     let results = [...this.memoryData.logs];
-    if (filters.tenant_id) {
-      results = results.filter(l => l.tenant_id === filters.tenant_id);
-    }
-    if (filters.status) {
-      results = results.filter(l => l.status === filters.status);
-    }
-    if (filters.phone_number_id) {
-      results = results.filter(l => l.phone_number_id === filters.phone_number_id);
-    }
+    if (filters.tenant_id) results = results.filter(l => l.tenant_id === filters.tenant_id);
+    if (filters.status) results = results.filter(l => l.status === filters.status);
+    if (filters.phone_number_id) results = results.filter(l => l.phone_number_id === filters.phone_number_id);
 
-    // Attach tenant names
-    const enriched = results.slice(0, limit).map(l => {
+    return results.slice(0, limit).map(l => {
       const tenant = this.memoryData.tenants.find(t => t.id === l.tenant_id);
-      return {
-        ...l,
-        tenants: tenant ? { name: tenant.name } : null
-      };
+      return { ...l, tenants: tenant ? { name: tenant.name } : null };
     });
-
-    return enriched;
   }
 
-  async getStats() {
+  async getStats(tenantId = null) {
     const tenants = await this.getAllTenants();
-    const logs = await this.getLogs({ limit: 1000 });
+    const logs = await this.getLogs({ tenant_id: tenantId, limit: 1000 });
 
     const totalTenants = tenants.length;
     const activeTenants = tenants.filter(t => t.status === 'active').length;
     const totalLogs = logs.length;
-    const repliedLogs = logs.filter(l => l.status === 'replied' || l.status === 'fallback_sent').length;
+    const repliedLogs = logs.filter(l => l.status === 'replied' || l.status === 'fallback_sent' || l.status === 'manual_sent').length;
     const failedLogs = logs.filter(l => l.status === 'failed').length;
+
+    let contactsCount = 0;
+    if (tenantId) {
+      const contacts = await this.getContactsByTenantId(tenantId);
+      contactsCount = contacts.length;
+    } else {
+      contactsCount = this.memoryData.contacts.length;
+    }
 
     return {
       totalTenants,
@@ -530,6 +815,7 @@ class TenantService {
       totalMessages: totalLogs,
       autoRepliedCount: repliedLogs,
       failedCount: failedLogs,
+      contactsCount,
       autoReplyRate: totalLogs > 0 ? Math.round((repliedLogs / totalLogs) * 100) : 0,
       databaseType: isConfigured ? 'Supabase PostgreSQL' : 'Local In-Memory Cache'
     };

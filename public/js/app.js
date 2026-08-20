@@ -1,5 +1,5 @@
 // =========================================================================
-// Power of Media - WhatsApp SaaS Dashboard Controller
+// Power of Media - Agency Master Dashboard Controller
 // =========================================================================
 
 let state = {
@@ -9,10 +9,13 @@ let state = {
   rules: [],
   logs: [],
   stats: {},
+  contacts: [],
+  conversations: [],
+  activeChatPhone: null,
+  activeChatName: null,
   simulatorMessages: []
 };
 
-// Initialize application on DOM ready
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
   setupDynamicUrls();
@@ -22,9 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupDynamicUrls() {
   const origin = window.location.origin;
   const webhookUrlInput = document.getElementById('setting-webhook-url');
-  if (webhookUrlInput) {
-    webhookUrlInput.value = `${origin}/api/webhook`;
-  }
+  if (webhookUrlInput) webhookUrlInput.value = `${origin}/api/webhook`;
 }
 
 async function refreshData() {
@@ -42,36 +43,42 @@ async function refreshData() {
 function switchTab(tabId) {
   state.activeTab = tabId;
 
-  // Update tabs visibility
-  document.querySelectorAll('.tab-content').forEach(tab => {
-    tab.classList.add('hidden');
-  });
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
   const targetTab = document.getElementById(`tab-${tabId}`);
   if (targetTab) targetTab.classList.remove('hidden');
 
-  // Update nav button styling
   document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.className = 'nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50';
+    btn.className = 'nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50';
   });
   const activeNav = document.getElementById(`nav-${tabId}`);
   if (activeNav) {
-    activeNav.className = 'nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all bg-indigo-600/15 text-indigo-400 border border-indigo-500/20';
+    activeNav.className = 'nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium transition-all bg-indigo-600/15 text-indigo-400 border border-indigo-500/20';
   }
 
-  // Update Header Title
   const titleMap = {
     overview: 'لوحة تحكم المنظومة المركزية',
-    tenants: 'إدارة الشركات والعملاء (Tenants)',
+    tenants: 'إدارة الشركات وبوابات العملاء (Tenants & Portals)',
+    livechat: 'المحادثات المباشرة والرد على العملاء (Live Chat)',
     rules: 'قواعد الرد التلقائي (Auto-Reply Rules)',
+    contacts: 'دليل جهات الاتصال والعملاء (Contacts)',
+    broadcast: 'حملات البث الجماعي (WhatsApp Broadcast)',
     simulator: 'محاكي الشات بوت التفاعلي (WhatsApp Simulator)',
     logs: 'سجل الرسائل والويب هوك (Audit Trail)',
-    settings: 'إعدادات الربط والنشر (Meta & Deployment)'
+    settings: 'إعدادات الـ Webhook والنشر (Meta & Deployment)'
   };
   document.getElementById('page-title').innerText = titleMap[tabId] || 'لوحة التحكم';
 
   if (tabId === 'rules') {
     populateTenantDropdowns();
     loadRulesForSelectedTenant();
+  } else if (tabId === 'livechat') {
+    populateTenantDropdowns();
+    loadAdminConversations();
+  } else if (tabId === 'contacts') {
+    populateTenantDropdowns();
+    loadAdminContacts();
+  } else if (tabId === 'broadcast') {
+    populateTenantDropdowns();
   } else if (tabId === 'simulator') {
     populateTenantDropdowns();
     initSimulator();
@@ -109,7 +116,7 @@ async function loadStats() {
 }
 
 // =========================================================================
-// Tenants Management
+// Tenants & Client Portals
 // =========================================================================
 async function loadTenants() {
   try {
@@ -141,78 +148,98 @@ function renderTenantsGrid() {
     return;
   }
 
-  container.innerHTML = state.tenants.map(tenant => `
-    <div class="glass-panel glass-panel-hover p-5 rounded-3xl space-y-4 border border-slate-800 flex flex-col justify-between">
-      <div>
-        <div class="flex items-start justify-between gap-3 mb-3">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-bold text-indigo-400">
-              ${tenant.name.substring(0, 2).toUpperCase()}
+  const origin = window.location.origin;
+
+  container.innerHTML = state.tenants.map(tenant => {
+    const portalUrl = `${origin}/portal?id=${tenant.id}&pin=${tenant.portal_pin || '123456'}`;
+
+    return `
+      <div class="glass-panel glass-panel-hover p-5 rounded-3xl space-y-4 border border-slate-800 flex flex-col justify-between">
+        <div>
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-bold text-indigo-400">
+                ${tenant.name.substring(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h4 class="font-bold text-sm text-white">${tenant.name}</h4>
+                <span class="text-[10px] text-slate-400 font-mono">ID: ${tenant.id.substring(0, 8)}...</span>
+              </div>
             </div>
-            <div>
-              <h4 class="font-bold text-sm text-white">${tenant.name}</h4>
-              <span class="text-[11px] text-slate-400 font-mono">ID: ${tenant.id.substring(0, 8)}...</span>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${tenant.status === 'active' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'}">
+              ${tenant.status === 'active' ? 'نشط' : 'متوقف'}
+            </span>
+          </div>
+
+          <div class="space-y-2 text-xs bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Phone ID:</span>
+              <span class="font-mono text-cyan-400 font-semibold select-all">${tenant.phone_number_id}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">Portal PIN:</span>
+              <span class="font-mono text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded-lg border border-amber-800/50">${tenant.portal_pin || '123456'}</span>
+            </div>
+            <div class="flex justify-between items-center pt-1 border-t border-slate-800">
+              <span class="text-slate-400">بوابة العميل:</span>
+              <button onclick="copyCustomText('${portalUrl}', 'تم نسخ رابط البوابة للعميل!')" class="text-[10px] font-bold text-indigo-300 hover:text-indigo-200 flex items-center gap-1">
+                <i data-lucide="copy" class="w-3 h-3"></i> نسخ الرابط السري
+              </button>
             </div>
           </div>
-          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${tenant.status === 'active' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'}">
-            ${tenant.status === 'active' ? 'نشط' : 'متوقف'}
-          </span>
         </div>
 
-        <div class="space-y-2 text-xs bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80">
-          <div class="flex justify-between">
-            <span class="text-slate-400">Phone Number ID:</span>
-            <span class="font-mono text-cyan-400 font-semibold select-all">${tenant.phone_number_id}</span>
+        <div class="space-y-2 pt-2 border-t border-slate-800/80">
+          <div class="flex items-center gap-2">
+            <a href="${portalUrl}" target="_blank" class="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              فتح بوابة العميل
+            </a>
+            <button onclick="deleteTenant('${tenant.id}', '${tenant.name}')" class="p-2 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
           </div>
-          <div class="flex justify-between">
-            <span class="text-slate-400">Token Status:</span>
-            <span class="font-mono text-emerald-400">● Configured</span>
+
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <button onclick="manageTenantRules('${tenant.id}')" class="flex-1 py-1.5 px-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center justify-center gap-1">
+              <i data-lucide="bot" class="w-3 h-3 text-cyan-400"></i> القواعد
+            </button>
+            <button onclick="openChatForTenant('${tenant.id}')" class="flex-1 py-1.5 px-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center justify-center gap-1">
+              <i data-lucide="message-square" class="w-3 h-3 text-emerald-400"></i> المحادثات
+            </button>
+            <button onclick="testInSimulator('${tenant.id}')" class="py-1.5 px-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center justify-center gap-1">
+              <i data-lucide="play" class="w-3 h-3 text-amber-400"></i>
+            </button>
           </div>
-          ${tenant.waba_id ? `
-          <div class="flex justify-between">
-            <span class="text-slate-400">WABA ID:</span>
-            <span class="font-mono text-slate-300 select-all">${tenant.waba_id}</span>
-          </div>` : ''}
         </div>
       </div>
-
-      <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-        <button onclick="manageTenantRules('${tenant.id}')" class="flex-1 py-2 px-3 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
-          <i data-lucide="bot" class="w-3.5 h-3.5"></i>
-          القواعد
-        </button>
-        <button onclick="testInSimulator('${tenant.id}')" class="py-2 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 text-xs font-semibold flex items-center gap-1 transition-all">
-          <i data-lucide="play" class="w-3.5 h-3.5"></i>
-          تجربة
-        </button>
-        <button onclick="deleteTenant('${tenant.id}', '${tenant.name}')" class="p-2 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   lucide.createIcons();
 }
 
 function populateTenantDropdowns() {
-  const rulesSelect = document.getElementById('rules-tenant-select');
-  const simSelect = document.getElementById('simulator-tenant-select');
+  const selects = [
+    document.getElementById('rules-tenant-select'),
+    document.getElementById('chat-tenant-select'),
+    document.getElementById('contacts-tenant-select'),
+    document.getElementById('broadcast-tenant-select'),
+    document.getElementById('simulator-tenant-select')
+  ];
 
   const options = state.tenants.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
-  if (rulesSelect) {
-    const currentVal = rulesSelect.value;
-    rulesSelect.innerHTML = options;
-    if (state.selectedTenantId) rulesSelect.value = state.selectedTenantId;
-    else if (state.tenants.length > 0) state.selectedTenantId = state.tenants[0].id;
-  }
-
-  if (simSelect) {
-    const currentVal = simSelect.value;
-    simSelect.innerHTML = options;
-    if (state.selectedTenantId) simSelect.value = state.selectedTenantId;
-  }
+  selects.forEach(sel => {
+    if (sel) {
+      sel.innerHTML = options;
+      if (state.selectedTenantId) sel.value = state.selectedTenantId;
+      else if (state.tenants.length > 0) {
+        state.selectedTenantId = state.tenants[0].id;
+        sel.value = state.selectedTenantId;
+      }
+    }
+  });
 }
 
 function openNewTenantModal() {
@@ -233,13 +260,13 @@ async function testMetaCredentials() {
   const feedback = document.getElementById('token-test-feedback');
 
   if (!phoneId || !token) {
-    showToast('يرجى كتابة Phone Number ID و Access Token أولاً للتحقق', 'error');
+    showToast('يرجى إدخال Phone ID و Access Token أولاً.', 'error');
     return;
   }
 
   feedback.classList.remove('hidden');
   feedback.className = 'mt-2 text-xs text-amber-400 p-2 rounded-xl bg-amber-950/40 border border-amber-800/40';
-  feedback.innerText = 'جاري الاتصال بـ Meta Graph API للتحقق من الصلاحية...';
+  feedback.innerText = 'جاري الفحص مع Meta Graph API...';
 
   try {
     const res = await fetch('/api/tenants/validate-credentials', {
@@ -251,15 +278,15 @@ async function testMetaCredentials() {
 
     if (json.valid) {
       feedback.className = 'mt-2 text-xs text-emerald-400 p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-800/50 font-semibold';
-      feedback.innerHTML = `✅ تم التحقق بنجاح!<br>اسم الحساب: ${json.data?.verified_name || 'Verified'} | الهاتف: ${json.data?.display_phone_number || '-'}`;
-      showToast('البيانات صحيحة وصالحة مع Meta!', 'success');
+      feedback.innerHTML = `✅ التوكن سليم وصالح!<br>الاسم: ${json.data?.verified_name || 'Verified'} | الهاتف: ${json.data?.display_phone_number || '-'}`;
+      showToast('البيانات صحيحة ومطابقة مع Meta!', 'success');
     } else {
       feedback.className = 'mt-2 text-xs text-rose-400 p-2.5 rounded-xl bg-rose-950/50 border border-rose-800/50 font-medium';
-      feedback.innerText = `❌ فشل التحقق: ${json.error || 'Token غير صالح أو الرقم غير صحيح'}`;
+      feedback.innerText = `❌ فشل التحقق: ${json.error || 'Token غير صالح'}`;
     }
   } catch (err) {
     feedback.className = 'mt-2 text-xs text-rose-400 p-2.5 rounded-xl bg-rose-950/50 border border-rose-800/50';
-    feedback.innerText = `خطأ في الاتصال: ${err.message}`;
+    feedback.innerText = `خطأ: ${err.message}`;
   }
 }
 
@@ -294,7 +321,7 @@ async function saveTenant(e) {
     const json = await res.json();
 
     if (json.success) {
-      showToast('تم حفظ بيانات العميل بنجاح!', 'success');
+      showToast('تم حفظ العميل وتوليد بوابة الإدارة بنجاح!', 'success');
       closeTenantModal();
       await refreshData();
     } else {
@@ -306,8 +333,7 @@ async function saveTenant(e) {
 }
 
 async function deleteTenant(id, name) {
-  if (!confirm(`هل أنت متأكد من حذف الشركة "${name}" وجميع قواعدها؟`)) return;
-
+  if (!confirm(`هل أنت متأكد من حذف الشركة "${name}" وبوابتها وكافة سجلاتها؟`)) return;
   try {
     const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE' });
     const json = await res.json();
@@ -315,7 +341,7 @@ async function deleteTenant(id, name) {
       showToast('تم حذف الشركة بنجاح', 'success');
       await refreshData();
     } else {
-      showToast(json.error || 'فشل حذف الشركة', 'error');
+      showToast(json.error || 'فشل الحذف', 'error');
     }
   } catch (err) {
     showToast('خطأ في الاتصال بالخادم', 'error');
@@ -327,9 +353,137 @@ function manageTenantRules(tenantId) {
   switchTab('rules');
 }
 
+function openChatForTenant(tenantId) {
+  state.selectedTenantId = tenantId;
+  switchTab('livechat');
+}
+
 function testInSimulator(tenantId) {
   state.selectedTenantId = tenantId;
   switchTab('simulator');
+}
+
+// =========================================================================
+// Live Chat (Agency Master Admin)
+// =========================================================================
+async function loadAdminConversations() {
+  const sel = document.getElementById('chat-tenant-select');
+  if (!sel) return;
+  const tenantId = sel.value || state.selectedTenantId;
+  state.selectedTenantId = tenantId;
+
+  const container = document.getElementById('admin-conv-list');
+  if (!container) return;
+
+  if (!tenantId) {
+    container.innerHTML = `<p class="text-xs text-slate-500 p-4 text-center">يرجى اختيار شركة أولاً.</p>`;
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/tenants/${tenantId}/conversations`);
+    const json = await res.json();
+
+    if (json.success) {
+      state.conversations = json.data;
+      if (state.conversations.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 p-4 text-center">لا توجد محادثات مسجلة لهذه الشركة بعد.</p>`;
+        return;
+      }
+
+      container.innerHTML = state.conversations.map(c => `
+        <button onclick="openAdminChat('${c.phone}', '${escapeHtml(c.senderName)}')" class="w-full text-right p-3.5 hover:bg-slate-900 transition-colors flex items-start gap-3 ${state.activeChatPhone === c.phone ? 'bg-indigo-950/40 border-r-2 border-indigo-500' : ''}">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-500 flex items-center justify-center font-bold text-white text-xs shrink-0">
+            ${c.senderName ? c.senderName.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <div class="flex-1 overflow-hidden">
+            <div class="flex items-center justify-between">
+              <h5 class="font-bold text-xs text-white truncate">${escapeHtml(c.senderName || c.phone)}</h5>
+              <span class="text-[9px] text-slate-500">${new Date(c.lastMessageAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(c.lastMessage || 'رسالة جديدة')}</p>
+          </div>
+        </button>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('Failed to load admin conversations:', e);
+  }
+}
+
+async function openAdminChat(phone, name) {
+  state.activeChatPhone = phone;
+  state.activeChatName = name;
+
+  document.getElementById('admin-chat-name').innerText = name || phone;
+  document.getElementById('admin-chat-phone').innerText = `+${phone}`;
+
+  loadAdminConversations();
+
+  const stream = document.getElementById('admin-chat-stream');
+  stream.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">جاري تحميل الرسائل...</p>`;
+
+  try {
+    const res = await fetch(`/api/tenants/${state.selectedTenantId}/conversations/${phone}/messages`);
+    const json = await res.json();
+
+    if (json.success) {
+      const messages = json.data;
+      if (messages.length === 0) {
+        stream.innerHTML = `<p class="text-xs text-slate-500 text-center py-8">لا توجد رسائل سابقة.</p>`;
+        return;
+      }
+
+      stream.innerHTML = messages.map(m => {
+        const isOut = m.direction === 'outbound' || m.status === 'manual_sent' || m.status === 'replied';
+        const time = new Date(m.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        const text = m.response_body || m.message_body || '';
+
+        return `
+          <div class="flex ${isOut ? 'justify-end' : 'justify-start'}">
+            <div class="${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} px-3.5 py-2 max-w-[80%] text-xs shadow-md">
+              <p class="text-white whitespace-pre-line">${escapeHtml(text)}</p>
+              <span class="text-[9px] ${isOut ? 'text-emerald-200/60 text-left' : 'text-slate-400 text-right'} block mt-1">
+                ${time} ${isOut ? '✓✓' : ''}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+      stream.scrollTop = stream.scrollHeight;
+    }
+  } catch (e) {
+    stream.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">فشل تحميل الرسائل.</p>`;
+  }
+}
+
+async function sendAdminManualReply() {
+  const input = document.getElementById('admin-reply-input');
+  const text = input.value.trim();
+  if (!text || !state.activeChatPhone) {
+    showToast('يرجى كتابة رسالة واختيار محادثة أولاً.', 'error');
+    return;
+  }
+
+  input.value = '';
+
+  try {
+    const res = await fetch(`/api/tenants/${state.selectedTenantId}/conversations/${state.activeChatPhone}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_body: text })
+    });
+    const json = await res.json();
+
+    if (json.success) {
+      showToast('تم إرسال الرسالة للعميل عبر واتساب!', 'success');
+      await openAdminChat(state.activeChatPhone, state.activeChatName);
+    } else {
+      showToast(json.error || 'فشل إرسال الرسالة', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ في إرسال الرسالة', 'error');
+  }
 }
 
 // =========================================================================
@@ -338,7 +492,7 @@ function testInSimulator(tenantId) {
 async function loadRulesForSelectedTenant() {
   const select = document.getElementById('rules-tenant-select');
   if (!select) return;
-  const tenantId = select.value;
+  const tenantId = select.value || state.selectedTenantId;
   state.selectedTenantId = tenantId;
 
   if (!tenantId) {
@@ -368,8 +522,7 @@ function renderRulesList() {
     container.innerHTML = `
       <div class="glass-panel p-8 rounded-3xl text-center text-slate-500 border border-slate-800">
         <i data-lucide="bot" class="w-10 h-10 mx-auto mb-2 opacity-40 text-cyan-400"></i>
-        <p class="text-sm font-semibold text-slate-300">لا توجد قواعد رد تلقائي مخصصة لهذه الشركة</p>
-        <p class="text-xs text-slate-500 mt-1">سيتم تطبيق رسالة الترحيب والرد الاحتياطي الافتراضي للشركة عند وصول أي رسالة.</p>
+        <p class="text-sm font-semibold text-slate-300">لا توجد قواعد مخصصة لهذه الشركة بعد</p>
         <button onclick="openNewRuleModal()" class="mt-4 text-xs font-bold text-cyan-400 hover:underline">+ اضغط هنا لإضافة أول كلمة مفتاحية</button>
       </div>
     `;
@@ -377,7 +530,7 @@ function renderRulesList() {
     return;
   }
 
-  container.innerHTML = state.rules.map((rule, idx) => {
+  container.innerHTML = state.rules.map(rule => {
     const keywords = rule.keyword.split(',').map(k => `<span class="px-2 py-0.5 rounded-lg bg-indigo-500/15 text-indigo-300 font-mono text-[11px] border border-indigo-500/20">${k.trim()}</span>`).join(' ');
 
     let replyPreview = '';
@@ -399,12 +552,7 @@ function renderRulesList() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-xs font-bold text-slate-400">الكلمات:</span>
             ${keywords}
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-              مطابقة: ${rule.match_type}
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800">
-              ${rule.reply_type === 'interactive_buttons' ? 'أزرار تفاعلية' : 'نص'}
-            </span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">مطابقة: ${rule.match_type}</span>
           </div>
           <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80">
             ${replyPreview}
@@ -412,9 +560,6 @@ function renderRulesList() {
         </div>
 
         <div class="flex items-center gap-3 self-end md:self-center">
-          <button onclick="toggleRuleActive('${rule.id}', ${!rule.is_active})" class="px-3 py-1.5 rounded-xl text-xs font-semibold ${rule.is_active ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'}">
-            ${rule.is_active ? 'مفعلة' : 'معطلة'}
-          </button>
           <button onclick="deleteRule('${rule.id}')" class="p-2 rounded-xl text-rose-400 hover:bg-rose-500/10">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
@@ -427,14 +572,11 @@ function renderRulesList() {
 }
 
 function openNewRuleModal() {
-  if (!state.selectedTenantId && state.tenants.length > 0) {
-    state.selectedTenantId = state.tenants[0].id;
-  }
+  if (!state.selectedTenantId && state.tenants.length > 0) state.selectedTenantId = state.tenants[0].id;
   if (!state.selectedTenantId) {
-    showToast('يرجى إضافة شركة أولاً قبل إنشاء القواعد', 'error');
+    showToast('يرجى إضافة شركة أولاً.', 'error');
     return;
   }
-
   document.getElementById('rule-form').reset();
   document.getElementById('form-rule-id').value = '';
   toggleReplyTypeFields();
@@ -448,85 +590,45 @@ function closeRuleModal() {
 function toggleReplyTypeFields() {
   const type = document.getElementById('form-rule-reply-type').value;
   const btnContainer = document.getElementById('rule-buttons-container');
-  if (type === 'interactive_buttons') {
-    btnContainer.classList.remove('hidden');
-  } else {
-    btnContainer.classList.add('hidden');
-  }
+  if (type === 'interactive_buttons') btnContainer.classList.remove('hidden');
+  else btnContainer.classList.add('hidden');
 }
 
 async function saveRule(e) {
   e.preventDefault();
-  const ruleId = document.getElementById('form-rule-id').value;
   const keyword = document.getElementById('form-rule-keyword').value.trim();
   const match_type = document.getElementById('form-rule-match-type').value;
   const reply_type = document.getElementById('form-rule-reply-type').value;
   const body = document.getElementById('form-rule-body').value.trim();
 
   let reply_content = { body };
-
   if (reply_type === 'interactive_buttons') {
     const b1 = document.getElementById('form-btn-1').value.trim();
     const b2 = document.getElementById('form-btn-2').value.trim();
     const b3 = document.getElementById('form-btn-3').value.trim();
-
     const buttons = [];
     if (b1) buttons.push({ id: 'btn_1', title: b1 });
     if (b2) buttons.push({ id: 'btn_2', title: b2 });
     if (b3) buttons.push({ id: 'btn_3', title: b3 });
-
-    if (buttons.length === 0) {
-      showToast('يرجى كتابة عنوان زر واحد على الأقل للأزرار التفاعلية', 'error');
-      return;
-    }
     reply_content.buttons = buttons;
   }
 
-  const payload = {
-    keyword,
-    match_type,
-    reply_type,
-    reply_content,
-    priority: 5,
-    is_active: true
-  };
-
   try {
-    const url = ruleId ? `/api/rules/${ruleId}` : `/api/tenants/${state.selectedTenantId}/rules`;
-    const method = ruleId ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-      method,
+    const res = await fetch(`/api/tenants/${state.selectedTenantId}/rules`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ keyword, match_type, reply_type, reply_content, priority: 5, is_active: true })
     });
     const json = await res.json();
-
     if (json.success) {
       showToast('تم حفظ القاعدة بنجاح!', 'success');
       closeRuleModal();
       await loadRulesForSelectedTenant();
     } else {
-      showToast(json.error || 'حدث خطأ أثناء الحفظ', 'error');
+      showToast(json.error || 'حدث خطأ', 'error');
     }
   } catch (err) {
     showToast('فشل في الاتصال بالخادم', 'error');
-  }
-}
-
-async function toggleRuleActive(ruleId, newStatus) {
-  try {
-    const res = await fetch(`/api/rules/${ruleId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: newStatus })
-    });
-    const json = await res.json();
-    if (json.success) {
-      await loadRulesForSelectedTenant();
-    }
-  } catch (err) {
-    showToast('فشل تحديث حالة القاعدة', 'error');
   }
 }
 
@@ -541,6 +643,78 @@ async function deleteRule(ruleId) {
     }
   } catch (err) {
     showToast('فشل حذف القاعدة', 'error');
+  }
+}
+
+// =========================================================================
+// Contacts Directory & Broadcast
+// =========================================================================
+async function loadAdminContacts() {
+  const sel = document.getElementById('contacts-tenant-select');
+  const tenantId = sel?.value || state.selectedTenantId;
+  const tbody = document.getElementById('admin-contacts-tbody');
+  if (!tbody) return;
+
+  if (!tenantId) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500">يرجى اختيار شركة لعرض جهات الاتصال.</td></tr>`;
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/tenants/${tenantId}/contacts`);
+    const json = await res.json();
+
+    if (json.success) {
+      state.contacts = json.data;
+      if (state.contacts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500">لا يوجد جهات اتصال مسجلة لهذه الشركة حتى الآن.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = state.contacts.map(c => `
+        <tr class="hover:bg-slate-800/30">
+          <td class="py-3 px-4 font-bold text-white">${escapeHtml(c.name || 'عميل واتساب')}</td>
+          <td class="py-3 px-4 font-mono text-cyan-400">+${c.phone_number}</td>
+          <td class="py-3 px-4">
+            ${(c.tags || []).map(t => `<span class="px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 text-[10px]">${t}</span>`).join(' ')}
+          </td>
+          <td class="py-3 px-4 font-mono text-slate-300">${c.total_messages || 1}</td>
+          <td class="py-3 px-4 text-slate-400">${new Date(c.last_message_at).toLocaleDateString('ar-EG')}</td>
+        </tr>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('Failed to load admin contacts:', e);
+  }
+}
+
+async function sendAdminBroadcast(e) {
+  e.preventDefault();
+  const sel = document.getElementById('broadcast-tenant-select');
+  const tenantId = sel.value;
+  const name = document.getElementById('admin-bc-name').value.trim();
+  const message_body = document.getElementById('admin-bc-body').value.trim();
+
+  if (!tenantId) {
+    showToast('يرجى اختيار شركة للإرسال نيابة عنها', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/tenants/${tenantId}/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaign_name: name, message_body })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showToast(json.message, 'success');
+      document.getElementById('admin-bc-body').value = '';
+    } else {
+      showToast(json.error || 'فشل إرسال الحملة', 'error');
+    }
+  } catch (e) {
+    showToast('خطأ في الاتصال بالخادم', 'error');
   }
 }
 
@@ -577,12 +751,12 @@ async function loadSimulatorQuickKeywords(tenantId) {
       });
 
       container.innerHTML = keywords.slice(0, 8).map(kw => `
-        <button onclick="sendSimText('${kw}')" class="px-3 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition-all">
+        <button onclick="sendSimText('${kw}')" class="px-3 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
           "${kw}"
         </button>
       `).join('');
     } else {
-      container.innerHTML = '<span class="text-xs text-slate-500">لا توجد كلمات مفتاحية مخصصة، اكتب "مرحبا" لتجربة رسالة الترحيب.</span>';
+      container.innerHTML = '<span class="text-xs text-slate-500">لا توجد كلمات مخصصة، جرّب كتابة "مرحبا".</span>';
     }
   } catch (e) {}
 }
@@ -612,21 +786,10 @@ async function sendSimulatorMessage(buttonId = null, buttonTitle = null) {
   const tenantId = select.value;
 
   if (!messageText && !buttonId) return;
-  if (!tenantId) {
-    showToast('يرجى اختيار شركة أولاً للتجربة', 'error');
-    return;
-  }
 
-  // 1. Render Outbound User Bubble
-  appendChatBubble({
-    direction: 'out',
-    text: messageText,
-    time: getCurrentTime()
-  });
-
+  appendChatBubble({ direction: 'out', text: messageText, time: getCurrentTime() });
   input.value = '';
 
-  // 2. Call Simulation API
   try {
     const res = await fetch('/api/simulate', {
       method: 'POST',
@@ -643,12 +806,9 @@ async function sendSimulatorMessage(buttonId = null, buttonTitle = null) {
 
     if (json.success) {
       const { evaluation } = json.data;
-
-      // Update Diagnostic Drawer
       document.getElementById('sim-diag-rule').innerText = evaluation.matchedRule ? evaluation.matchedRule.keyword : (evaluation.matchReason || 'لا يوجد');
       document.getElementById('sim-diag-type').innerText = evaluation.replyType;
 
-      // Render Bot Reply Bubble
       if (evaluation.matched && evaluation.replyContent) {
         setTimeout(() => {
           appendChatBubble({
@@ -678,7 +838,6 @@ function appendChatBubble(msg) {
       </div>
     `;
   } else {
-    // Inbound (Bot Response)
     let bodyContent = '';
     const content = msg.content || {};
 
@@ -710,7 +869,7 @@ function appendChatBubble(msg) {
 }
 
 // =========================================================================
-// Logs & Audit Trail
+// Logs & Utilities
 // =========================================================================
 async function loadLogs() {
   const statusFilter = document.getElementById('logs-filter-status')?.value || '';
@@ -732,33 +891,27 @@ function renderLogsTable() {
   if (!tbody) return;
 
   if (state.logs.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" class="py-8 text-center text-slate-500 text-xs">
-          لا توجد رسائل مسجلة حتى الآن.
-        </td>
-      </tr>
-    `;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">لا توجد رسائل مسجلة.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = state.logs.map(log => {
     const tenantName = log.tenants?.name || 'غير محدد';
-    const timeStr = new Date(log.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timeStr = new Date(log.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
     let statusBadge = '';
-    if (log.status === 'replied') {
+    if (log.status === 'replied' || log.status === 'manual_sent') {
       statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">تم الرد ✅</span>';
     } else if (log.status === 'fallback_sent') {
       statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">رد احتياطي ⚠️</span>';
     } else if (log.status === 'failed') {
       statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">فشل ❌</span>';
     } else {
-      statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">تجاهل ℹ️</span>';
+      statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">تجاهل ℹ️</span>';
     }
 
     return `
-      <tr class="hover:bg-slate-800/30 transition-colors">
+      <tr class="hover:bg-slate-800/30">
         <td class="py-3 px-4 text-slate-400 font-mono">${timeStr}</td>
         <td class="py-3 px-4 font-semibold text-indigo-300">${tenantName}</td>
         <td class="py-3 px-4 font-mono text-cyan-400">${log.sender_phone || '-'}</td>
@@ -800,9 +953,6 @@ function renderOverviewRecentLogs() {
   lucide.createIcons();
 }
 
-// =========================================================================
-// Helpers & Utilities
-// =========================================================================
 function copyWebhookUrl() {
   const url = `${window.location.origin}/api/webhook`;
   navigator.clipboard.writeText(url).then(() => {
@@ -815,6 +965,12 @@ function copyElementText(elementId) {
   if (!elem) return;
   navigator.clipboard.writeText(elem.value).then(() => {
     showToast('تم النسخ بنجاح!', 'success');
+  });
+}
+
+function copyCustomText(text, msg) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(msg || 'تم النسخ بنجاح!', 'success');
   });
 }
 

@@ -24,6 +24,11 @@ app.use((req, res, next) => {
 // Serve Static Frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Dedicated Client Portal Route
+app.get('/portal', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'portal.html'));
+});
+
 // Webhook Routes (Supports both /api/webhook and /webhook)
 app.use('/api/webhook', webhookRoutes);
 app.use('/webhook', webhookRoutes);
@@ -55,11 +60,9 @@ if (require.main === module) {
     console.log('====================================================');
     console.log('  🚀 Power of Media - Multi-Tenant WhatsApp SaaS   ');
     console.log('====================================================');
-    console.log(`  🌐 Server running at: http://localhost:${PORT}`);
-    console.log(`  🔗 Webhook Endpoint:  http://localhost:${PORT}/api/webhook`);
-    console.log(`  📊 Dashboard UI:     http://localhost:${PORT}`);
-    console.log(`  🔑 Verify Token:     ${env.META_VERIFY_TOKEN}`);
-    console.log(`  🗄️  Database Status:  ${env.isSupabaseConfigured ? 'Supabase Connected' : 'Local Fallback Store'}`);
+    console.log(`  🌐 Admin Dashboard:  http://localhost:${PORT}`);
+    console.log(`  👤 Client Portal:    http://localhost:${PORT}/portal`);
+    console.log(`  🔗 Webhook Endpoint: http://localhost:${PORT}/api/webhook`);
     console.log('====================================================\n');
   });
 }

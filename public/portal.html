@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بوابة العميل - WhatsApp Business Hub | Power of Media</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366F1', 600: '#4F46E5', 700: '#4338CA' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0B0F19] text-slate-100 min-h-screen">
+
+  <!-- LOGIN SCREEN (If not authenticated) -->
+  <div id="portal-login-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-md p-8 rounded-3xl space-y-6 border border-indigo-500/20 text-center shadow-2xl relative">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/30">
+        <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-extrabold text-white">بوابة العميل الخاصة</h2>
+        <p class="text-xs text-slate-400 mt-1">Power of Media - WhatsApp Business Portal</p>
+      </div>
+
+      <form id="portal-login-form" onsubmit="handlePortalLogin(event)" class="space-y-4 text-right">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">معرّف الشركة أو رابط البوابة (Portal Key / ID):</label>
+          <input type="text" id="login-identifier" required placeholder="مثال: a000... أو pom_portal_demo_key" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">رمز الدخول السري (6-Digit PIN):</label>
+          <input type="password" id="login-pin" required maxlength="10" placeholder="••••••" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-center tracking-widest font-mono text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <button type="submit" class="gradient-btn-primary w-full py-3 rounded-xl text-xs font-bold text-white shadow-lg shadow-indigo-600/20">
+          تسجيل الدخول إلى لوحة شركتي
+        </button>
+      </form>
+
+      <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+        إذا لم يكن لديك رمز الدخول، يرجى التواصل مع فريق دعم <strong class="text-indigo-400">Power of Media</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- PORTAL MAIN APPLICATION -->
+  <div id="portal-app-screen" class="hidden min-h-screen flex flex-col md:flex-row">
+    <!-- Sidebar -->
+    <aside class="w-64 border-l border-slate-800/80 bg-[#0E1322] flex flex-col justify-between p-4 shrink-0">
+      <div class="space-y-6">
+        <!-- Client Profile Box -->
+        <div class="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-800/40 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center font-bold text-white text-base">
+            <span id="portal-tenant-avatar">C</span>
+          </div>
+          <div class="overflow-hidden">
+            <h3 id="portal-tenant-name" class="font-bold text-sm text-white truncate">شركة العميل</h3>
+            <span class="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span> حساب واتساب نشط
+            </span>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="space-y-1.5 text-xs">
+          <button onclick="switchPortalTab('dashboard')" id="pnav-dashboard" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold bg-indigo-600/15 text-indigo-400 border border-indigo-500/20">
+            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+            <span>نظرة عامة (Overview)</span>
+          </button>
+          <button onclick="switchPortalTab('livechat')" id="pnav-livechat" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="message-square" class="w-4 h-4"></i>
+            <span>المحادثات المباشرة (Live Chat)</span>
+          </button>
+          <button onclick="switchPortalTab('rules')" id="pnav-rules" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="bot" class="w-4 h-4"></i>
+            <span>الردود الآلية والكلمات (Rules)</span>
+          </button>
+          <button onclick="switchPortalTab('hours')" id="pnav-hours" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="clock" class="w-4 h-4"></i>
+            <span>ساعات العمل الرسمية</span>
+          </button>
+          <button onclick="switchPortalTab('contacts')" id="pnav-contacts" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="users" class="w-4 h-4"></i>
+            <span>دليل العملاء (Contacts)</span>
+          </button>
+          <button onclick="switchPortalTab('broadcast')" id="pnav-broadcast" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="send" class="w-4 h-4"></i>
+            <span>إرسال حملة بث (Broadcast)</span>
+          </button>
+          <button onclick="switchPortalTab('settings')" id="pnav-settings" class="pnav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-white hover:bg-slate-800/50">
+            <i data-lucide="sliders" class="w-4 h-4"></i>
+            <span>إعدادات البوت والترحيب</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Logout & Agency Footer -->
+      <div class="space-y-3 pt-4 border-t border-slate-800">
+        <button onclick="portalLogout()" class="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          تسجيل الخروج
+        </button>
+        <div class="text-[10px] text-slate-500 text-center">
+          Powered by <strong class="text-indigo-400">Power of Media</strong>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="flex-1 flex flex-col min-h-screen">
+      <!-- Top Bar -->
+      <header class="h-16 border-b border-slate-800/80 bg-[#0B0F19]/80 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-20">
+        <div>
+          <h2 id="portal-page-title" class="text-base font-bold text-white">لوحة تحكم الشركة</h2>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full font-mono font-medium">
+            WhatsApp Phone ID: <span id="portal-phone-id">-</span>
+          </span>
+          <button onclick="refreshPortalData()" class="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-300">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="p-8 flex-1">
+        <!-- 1. DASHBOARD OVERVIEW -->
+        <div id="ptab-dashboard" class="ptab-content space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div class="glass-panel p-5 rounded-2xl">
+              <p class="text-xs text-slate-400 mb-1">إجمالي الرسائل الواردة</p>
+              <h3 id="pstat-messages" class="text-2xl font-black text-white">0</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl">
+              <p class="text-xs text-slate-400 mb-1">الردود الآلية الناجحة</p>
+              <h3 id="pstat-replies" class="text-2xl font-black text-emerald-400">0</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl">
+              <p class="text-xs text-slate-400 mb-1">قواعد الردود المفعلة</p>
+              <h3 id="pstat-rules" class="text-2xl font-black text-indigo-400">0</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl">
+              <p class="text-xs text-slate-400 mb-1">جهات الاتصال المسجلة</p>
+              <h3 id="pstat-contacts" class="text-2xl font-black text-cyan-400">0</h3>
+            </div>
+          </div>
+
+          <!-- Quick Actions & Highlights -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass-panel p-6 rounded-3xl space-y-4">
+              <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                إجراءات سريعة
+              </h4>
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <button onclick="switchPortalTab('livechat')" class="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-right space-y-1">
+                  <div class="font-bold text-white flex items-center gap-1.5"><i data-lucide="message-square" class="w-3.5 h-3.5 text-cyan-400"></i> فتح المحادثات</div>
+                  <p class="text-[10px] text-slate-400">الرد المباشر على رسائل العملاء</p>
+                </button>
+                <button onclick="switchPortalTab('rules'); openNewPortalRuleModal();" class="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-right space-y-1">
+                  <div class="font-bold text-white flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-3.5 h-3.5 text-indigo-400"></i> إضافة كلمة جديدة</div>
+                  <p class="text-[10px] text-slate-400">إضافة رد آلي جديد لأي كلمة</p>
+                </button>
+              </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-3xl space-y-4">
+              <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                <i data-lucide="bell" class="w-4 h-4 text-indigo-400"></i>
+                آخر رسائل العملاء
+              </h4>
+              <div id="portal-recent-logs" class="space-y-2 text-xs">
+                <p class="text-slate-500 py-3 text-center">جاري التحميل...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. LIVE CHAT / INBOX -->
+        <div id="ptab-livechat" class="ptab-content hidden space-y-4">
+          <div class="glass-panel rounded-3xl overflow-hidden border border-slate-800 h-[75vh] flex flex-col md:flex-row">
+            <!-- Left: Conversations List -->
+            <div class="w-full md:w-80 border-l border-slate-800 flex flex-col bg-slate-950/40">
+              <div class="p-3.5 border-b border-slate-800">
+                <h4 class="font-bold text-xs text-white">المحادثات النشطة</h4>
+              </div>
+              <div id="portal-conv-list" class="flex-1 overflow-y-auto divide-y divide-slate-900/80">
+                <p class="text-xs text-slate-500 p-4 text-center">جاري تحميل المحادثات...</p>
+              </div>
+            </div>
+
+            <!-- Right: Chat Thread & Reply Box -->
+            <div class="flex-1 flex flex-col bg-[#0B141A]">
+              <!-- Chat Header -->
+              <div class="p-3.5 bg-[#202C33] border-b border-[#111B21] flex items-center justify-between">
+                <div>
+                  <h4 id="portal-chat-name" class="font-bold text-xs text-white">اختر محادثة لعرضها</h4>
+                  <span id="portal-chat-phone" class="text-[10px] text-emerald-400 font-mono">-</span>
+                </div>
+              </div>
+
+              <!-- Message Stream -->
+              <div id="portal-chat-stream" class="flex-1 p-4 overflow-y-auto space-y-2.5 whatsapp-chat-bg text-xs">
+                <p class="text-slate-500 text-center py-12">يرجى تحديد محادثة من القائمة للبدء بالرد المباشر.</p>
+              </div>
+
+              <!-- Reply Input Box -->
+              <div class="p-3 bg-[#202C33] border-t border-[#111B21] flex items-center gap-2">
+                <input id="portal-reply-input" type="text" placeholder="اكتب ردك للعميل وسيتم إرساله مباشرة عبر واتساب..." onkeydown="if(event.key==='Enter') sendPortalManualReply()" class="flex-1 bg-[#2A3942] text-white text-xs px-3.5 py-2.5 rounded-xl placeholder-slate-400 focus:outline-none">
+                <button onclick="sendPortalManualReply()" class="px-4 py-2.5 bg-[#00A884] hover:bg-[#008f6f] text-white text-xs font-bold rounded-xl flex items-center gap-1.5">
+                  <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                  إرسال
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. AUTO-REPLY RULES -->
+        <div id="ptab-rules" class="ptab-content hidden space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-white">قواعد الردود الآلية لشركتك</h3>
+              <p class="text-xs text-slate-400">تحكم بالكلمات التي يفهمها البوت والردود المناسبة لها</p>
+            </div>
+            <button onclick="openNewPortalRuleModal()" class="gradient-btn-primary text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              إضافة رد آلي جديد
+            </button>
+          </div>
+          <div id="portal-rules-list" class="space-y-3"></div>
+        </div>
+
+        <!-- 4. BUSINESS HOURS -->
+        <div id="ptab-hours" class="ptab-content hidden space-y-6">
+          <div class="glass-panel p-6 rounded-3xl max-w-2xl space-y-5 border border-slate-800">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="clock" class="w-5 h-5 text-indigo-400"></i>
+              إعداد مواعيد وساعات العمل الرسمية
+            </h3>
+            <p class="text-xs text-slate-400">عند تفعيل هذا الخيار، سيقوم البوت تلقائياً بالرد برسالة مخصصة عند تواصل العملاء خارج أوقات العمل الرسمية.</p>
+
+            <form onsubmit="savePortalBusinessHours(event)" class="space-y-4 text-xs">
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <input type="checkbox" id="hours-enabled" class="w-4 h-4 accent-indigo-600 cursor-pointer">
+                <label for="hours-enabled" class="font-bold text-white cursor-pointer">تفعيل الرد التلقائي خارج أوقات العمل</label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">وقت بدء العمل (Start Time):</label>
+                  <input type="time" id="hours-start" value="09:00" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">وقت انتهاء العمل (End Time):</label>
+                  <input type="time" id="hours-end" value="18:00" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white">
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">رسالة خارج أوقات العمل (Off-Hours Reply):</label>
+                <textarea id="hours-reply" rows="3" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white" placeholder="شكراً لتواصلك! مواعيد العمل من 9 ص إلى 6 م..."></textarea>
+              </div>
+
+              <button type="submit" class="gradient-btn-primary px-6 py-2.5 rounded-xl text-white font-bold">
+                حفظ مواعيد العمل
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 5. CONTACTS DIRECTORY -->
+        <div id="ptab-contacts" class="ptab-content hidden space-y-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-white">دليل عملاء الشركة</h3>
+          </div>
+          <div class="glass-panel rounded-3xl overflow-hidden border border-slate-800">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4">اسم العميل</th>
+                  <th class="py-3.5 px-4">رقم الواتساب</th>
+                  <th class="py-3.5 px-4">التصنيفات (Tags)</th>
+                  <th class="py-3.5 px-4">عدد الرسائل</th>
+                  <th class="py-3.5 px-4">آخر تواصل</th>
+                </tr>
+              </thead>
+              <tbody id="portal-contacts-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 6. BROADCAST CAMPAIGNS -->
+        <div id="ptab-broadcast" class="ptab-content hidden space-y-6">
+          <div class="glass-panel p-6 rounded-3xl max-w-2xl space-y-5 border border-slate-800">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="send" class="w-5 h-5 text-cyan-400"></i>
+              إرسال رسالة جماعية (WhatsApp Broadcast)
+            </h3>
+            <p class="text-xs text-slate-400">أرسل إعلاناً أو عرضاً ترويجياً مباشراً لجميع عملائك المسجلين عبر واتساب.</p>
+
+            <form onsubmit="sendPortalBroadcast(event)" class="space-y-4 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">اسم الحملة (للأرشفة):</label>
+                <input type="text" id="bc-name" required placeholder="مثال: عرض نهاية الأسبوع" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white">
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">نص الرسالة المرسلة لجميع العملاء *:</label>
+                <textarea id="bc-body" required rows="4" placeholder="اكتب نص الرسالة أو العرض..." class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white"></textarea>
+              </div>
+
+              <button type="submit" class="gradient-btn-primary px-6 py-2.5 rounded-xl text-white font-bold flex items-center gap-2">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                إرسال الحملة الآن لجميع العملاء
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 7. PROFILE & BOT SETTINGS -->
+        <div id="ptab-settings" class="ptab-content hidden space-y-6">
+          <div class="glass-panel p-6 rounded-3xl max-w-2xl space-y-5 border border-slate-800">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
+              تخصيص نصوص الترحيب والرد الافتراضي
+            </h3>
+
+            <form onsubmit="savePortalProfileSettings(event)" class="space-y-4 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">اسم الشركة:</label>
+                <input type="text" id="pset-name" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white">
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">رسالة الترحيب الأولى (Welcome Message):</label>
+                <textarea id="pset-welcome" rows="3" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white"></textarea>
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-300 mb-1">الرد الاحتياطي عند عدم فهم الرسالة (Fallback Message):</label>
+                <textarea id="pset-fallback" rows="3" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white"></textarea>
+              </div>
+
+              <button type="submit" class="gradient-btn-primary px-6 py-2.5 rounded-xl text-white font-bold">
+                حفظ التعديلات
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: PORTAL CREATE RULE -->
+  <div id="portal-rule-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-lg p-6 rounded-3xl space-y-4 border border-indigo-500/30">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h4 class="text-sm font-bold text-white">إضافة رد آلي جديد لشركتك</h4>
+        <button onclick="closePortalRuleModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form onsubmit="savePortalRule(event)" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">الكلمات المفتاحية (افصل بينها بفاصلة):</label>
+          <input type="text" id="pform-keyword" required placeholder="مثال: منيو, قائمة الطعام, الاسعار" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">نوع الرد:</label>
+          <select id="pform-reply-type" onchange="togglePortalRuleFields()" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white">
+            <option value="text">نص عادي</option>
+            <option value="interactive_buttons">أزرار تفاعلية</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">نص الرد:</label>
+          <textarea id="pform-body" required rows="3" placeholder="اكتب نص الرد..." class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white"></textarea>
+        </div>
+        <div id="pform-buttons-box" class="hidden space-y-2 p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+          <label class="font-bold text-cyan-400">الأزرار التفاعلية:</label>
+          <input type="text" id="pform-btn-1" placeholder="زر 1: مثلاً 'طلب المنيو'" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-white text-xs">
+          <input type="text" id="pform-btn-2" placeholder="زر 2: مثلاً 'التواصل مع خدمة العملاء'" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-white text-xs">
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+          <button type="button" onclick="closePortalRuleModal()" class="px-4 py-2 rounded-xl text-slate-400 bg-slate-800">إلغاء</button>
+          <button type="submit" class="gradient-btn-primary px-5 py-2 rounded-xl text-white font-bold">حفظ الرد</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/portal.js"></script>
+</body>
+</html>

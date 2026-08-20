@@ -5,17 +5,11 @@ const tenantController = require('../controllers/tenantController');
 const ruleController = require('../controllers/ruleController');
 const logController = require('../controllers/logController');
 const simulatorController = require('../controllers/simulatorController');
+const chatController = require('../controllers/chatController');
+const portalController = require('../controllers/portalController');
+const contactController = require('../controllers/contactController');
+const broadcastController = require('../controllers/broadcastController');
 const env = require('../config/env');
-
-// Optional API Key middleware
-const apiKeyAuth = (req, res, next) => {
-  if (!env.ADMIN_API_KEY) return next();
-  const providedKey = req.headers['x-api-key'] || req.query.apiKey;
-  if (providedKey === env.ADMIN_API_KEY) {
-    return next();
-  }
-  return res.status(401).json({ success: false, error: 'Unauthorized: Invalid API Key.' });
-};
 
 // ==========================================
 // System & Health
@@ -29,19 +23,16 @@ router.get('/health', (req, res) => {
   });
 });
 
-// Stats
 router.get('/stats', (req, res) => logController.getStats(req, res));
 
 // ==========================================
-// Tenants
+// Tenants CRUD & Credential Validator
 // ==========================================
 router.get('/tenants', (req, res) => tenantController.listTenants(req, res));
 router.get('/tenants/:id', (req, res) => tenantController.getTenant(req, res));
 router.post('/tenants', (req, res) => tenantController.createTenant(req, res));
 router.put('/tenants/:id', (req, res) => tenantController.updateTenant(req, res));
 router.delete('/tenants/:id', (req, res) => tenantController.deleteTenant(req, res));
-
-// Automated Onboarding: Meta Credential Validator
 router.post('/tenants/validate-credentials', (req, res) => tenantController.validateMetaCredentials(req, res));
 
 // ==========================================
@@ -53,13 +44,35 @@ router.put('/rules/:ruleId', (req, res) => ruleController.updateRule(req, res));
 router.delete('/rules/:ruleId', (req, res) => ruleController.deleteRule(req, res));
 
 // ==========================================
-// Logs & Audit Trail
+// Live Chat & Inbox
 // ==========================================
-router.get('/logs', (req, res) => logController.getLogs(req, res));
+router.get('/tenants/:tenantId/conversations', (req, res) => chatController.getConversations(req, res));
+router.get('/tenants/:tenantId/conversations/:phone/messages', (req, res) => chatController.getMessages(req, res));
+router.post('/tenants/:tenantId/conversations/:phone/reply', (req, res) => chatController.sendManualReply(req, res));
 
 // ==========================================
-// WhatsApp Chat Simulator
+// Contacts Directory & Tags
 // ==========================================
+router.get('/tenants/:tenantId/contacts', (req, res) => contactController.listContacts(req, res));
+router.put('/contacts/:contactId/tags', (req, res) => contactController.updateTags(req, res));
+
+// ==========================================
+// WhatsApp Broadcast Campaigns
+// ==========================================
+router.post('/tenants/:tenantId/broadcast', (req, res) => broadcastController.sendBroadcast(req, res));
+router.get('/tenants/:tenantId/broadcasts', (req, res) => broadcastController.listBroadcasts(req, res));
+
+// ==========================================
+// Client Self-Service Portal
+// ==========================================
+router.post('/portal/auth', (req, res) => portalController.authenticate(req, res));
+router.get('/portal/:tenantId', (req, res) => portalController.getPortalWorkspace(req, res));
+router.put('/portal/:tenantId/settings', (req, res) => portalController.updatePortalSettings(req, res));
+
+// ==========================================
+// Logs & Simulator
+// ==========================================
+router.get('/logs', (req, res) => logController.getLogs(req, res));
 router.post('/simulate', (req, res) => simulatorController.simulateMessage(req, res));
 
 module.exports = router;

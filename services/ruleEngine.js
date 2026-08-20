@@ -1,22 +1,30 @@
 class RuleEngine {
   /**
-   * Evaluate incoming message against tenant's configured rules.
-   * @param {object} parsedMessage 
-   * @param {object} tenant 
-   * @param {Array} rules 
-   * @returns {object} { matched: boolean, rule?: object, replyType: string, replyContent: object, matchReason: string }
+   * Evaluate incoming message against tenant's configured rules and business hours.
    */
   evaluate(parsedMessage, tenant, rules = []) {
     const rawText = (parsedMessage.text || '').trim();
     const cleanText = rawText.toLowerCase();
     const payloadId = parsedMessage.buttonId || parsedMessage.listId || '';
 
-    // 1. Check Interactive Button or List Payload matches
+    // 1. Check Business Hours (if enabled)
+    const isOutsideHours = this.checkIfOutsideBusinessHours(tenant.business_hours);
+    if (isOutsideHours && tenant.business_hours?.off_hours_reply) {
+      const offHoursText = this.replacePlaceholders(tenant.business_hours.off_hours_reply, tenant, parsedMessage);
+      return {
+        matched: true,
+        rule: null,
+        replyType: 'text',
+        replyContent: { body: offHoursText },
+        matchReason: 'Outside business hours auto-reply'
+      };
+    }
+
+    // 2. Check Interactive Button or List Payload matches
     if (payloadId) {
       for (const rule of rules) {
         if (!rule.is_active) continue;
 
-        // Direct payload match
         if (rule.keyword === payloadId || rule.keyword.split(',').map(k => k.trim()).includes(payloadId)) {
           return {
             matched: true,
@@ -29,7 +37,7 @@ class RuleEngine {
       }
     }
 
-    // 2. Check Keyword Matching in Order of Priority
+    // 3. Check Keyword Matching in Order of Priority
     for (const rule of rules) {
       if (!rule.is_active) continue;
 
@@ -76,7 +84,7 @@ class RuleEngine {
       }
     }
 
-    // 3. Check for standard greetings for Welcome Message
+    // 4. Check for standard greetings for Welcome Message
     const commonGreetings = ['مرحبا', 'مرحباً', 'سلام', 'السلام عليكم', 'الو', 'هلا', 'أهلاً', 'اهلاً', 'hi', 'hello', 'hey', 'start', 'menu', 'قائمة'];
     const isGreeting = commonGreetings.some(g => cleanText === g || cleanText.startsWith(g));
 
@@ -91,7 +99,7 @@ class RuleEngine {
       };
     }
 
-    // 4. Check for Fallback Message
+    // 5. Check for Fallback Message
     if (tenant.enable_fallback && tenant.default_fallback_reply) {
       const fallbackText = this.replacePlaceholders(tenant.default_fallback_reply, tenant, parsedMessage);
       return {
@@ -103,7 +111,7 @@ class RuleEngine {
       };
     }
 
-    // 5. No match found & fallback disabled
+    // 6. No match
     return {
       matched: false,
       rule: null,
@@ -114,8 +122,42 @@ class RuleEngine {
   }
 
   /**
-   * Helper to format reply content and inject variables.
+   * Helper to check if current time is outside tenant's configured working hours.
    */
+  checkIfOutsideBusinessHours(businessHours) {
+    if (!businessHours || !businessHours.enabled) return false;
+
+    try {
+      const timezone = businessHours.timezone || 'Africa/Cairo';
+      const now = new Date();
+      const localTimeStr = now.toLocaleTimeString('en-GB', { timeZone: timezone, hour12: false });
+      const localDay = new Date(now.toLocaleString('en-US', { timeZone: timezone })).getDay();
+
+      const workDays = businessHours.work_days || [0, 1, 2, 3, 4]; // Sunday=0, Thursday=4
+      if (!workDays.includes(localDay)) {
+        return true; // Weekend / Off day
+      }
+
+      const [curHour, curMin] = localTimeStr.split(':').map(Number);
+      const curTotalMinutes = curHour * 60 + curMin;
+
+      const [startHour, startMin] = (businessHours.start_time || '09:00').split(':').map(Number);
+      const startTotalMinutes = startHour * 60 + startMin;
+
+      const [endHour, endMin] = (businessHours.end_time || '18:00').split(':').map(Number);
+      const endTotalMinutes = endHour * 60 + endMin;
+
+      if (curTotalMinutes < startTotalMinutes || curTotalMinutes > endTotalMinutes) {
+        return true; // Before opening or after closing
+      }
+
+      return false;
+    } catch (e) {
+      console.warn('[RuleEngine] Business hours calculation error:', e.message);
+      return false;
+    }
+  }
+
   formatReply(content, tenant, message) {
     if (!content) return { body: '' };
 
@@ -128,22 +170,13 @@ class RuleEngine {
       }
     }
 
-    if (parsed.body) {
-      parsed.body = this.replacePlaceholders(parsed.body, tenant, message);
-    }
-    if (parsed.header) {
-      parsed.header = this.replacePlaceholders(parsed.header, tenant, message);
-    }
-    if (parsed.footer) {
-      parsed.footer = this.replacePlaceholders(parsed.footer, tenant, message);
-    }
+    if (parsed.body) parsed.body = this.replacePlaceholders(parsed.body, tenant, message);
+    if (parsed.header) parsed.header = this.replacePlaceholders(parsed.header, tenant, message);
+    if (parsed.footer) parsed.footer = this.replacePlaceholders(parsed.footer, tenant, message);
 
     return parsed;
   }
 
-  /**
-   * Replace dynamic placeholders like {company_name}, {sender_name}, {sender_phone}
-   */
   replacePlaceholders(text, tenant, message) {
     if (!text || typeof text !== 'string') return '';
     return text
