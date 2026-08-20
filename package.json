@@ -1,0 +1,31 @@
+{
+  "name": "power-of-media-whatsapp-saas",
+  "version": "1.0.0",
+  "description": "Multi-tenant WhatsApp Business API SaaS Backend & Central Management Dashboard for Power of Media Agency",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node scripts/test-webhook.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "whatsapp-cloud-api",
+    "multi-tenant",
+    "saas",
+    "power-of-media",
+    "meta-webhook",
+    "supabase",
+    "express",
+    "vercel"
+  ],
+  "author": "Power of Media <ana.lolo.6000@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

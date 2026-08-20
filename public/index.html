@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power of Media - WhatsApp Multi-Tenant SaaS</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#EEF2FF',
+              100: '#E0E7FF',
+              500: '#6366F1',
+              600: '#4F46E5',
+              700: '#4338CA',
+              900: '#1E1B4B',
+            },
+            darkBg: '#0B0F19',
+            darkCard: '#121826',
+            darkBorder: 'rgba(255, 255, 255, 0.08)'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0B0F19] text-slate-100 flex min-h-screen">
+
+  <!-- Sidebar Navigation -->
+  <aside class="w-64 border-l border-slate-800/80 bg-[#0E1322] flex flex-col justify-between p-4 shrink-0 fixed inset-y-0 right-0 z-30">
+    <div>
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3 px-3 py-4 mb-6 border-b border-slate-800/80">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i data-lucide="message-square-code" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base tracking-wide text-white flex items-center gap-1.5">
+            Power of Media
+          </h1>
+          <span class="text-xs text-indigo-400 font-medium tracking-wider">WhatsApp SaaS Hub</span>
+        </div>
+      </div>
+
+      <!-- Navigation Menu Items -->
+      <nav class="space-y-1.5">
+        <button onclick="switchTab('overview')" id="nav-overview" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all bg-indigo-600/15 text-indigo-400 border border-indigo-500/20">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>لوحة التحكم (Overview)</span>
+        </button>
+
+        <button onclick="switchTab('tenants')" id="nav-tenants" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50">
+          <i data-lucide="building-2" class="w-4 h-4"></i>
+          <span>الشركات والعملاء (Tenants)</span>
+        </button>
+
+        <button onclick="switchTab('rules')" id="nav-rules" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50">
+          <i data-lucide="bot" class="w-4 h-4"></i>
+          <span>قواعد الرد التلقائي (Rules)</span>
+        </button>
+
+        <button onclick="switchTab('simulator')" id="nav-simulator" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+          <span>محاكي الشات (Simulator)</span>
+        </button>
+
+        <button onclick="switchTab('logs')" id="nav-logs" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50">
+          <i data-lucide="history" class="w-4 h-4"></i>
+          <span>سجل الرسائل (Logs)</span>
+        </button>
+
+        <button onclick="switchTab('settings')" id="nav-settings" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800/50">
+          <i data-lucide="settings-2" class="w-4 h-4"></i>
+          <span>إعدادات الربط (Webhook)</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Agency Badge & Status -->
+    <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-slate-400">حالة السيرفر:</span>
+        <span class="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+          متصل
+        </span>
+      </div>
+      <div class="text-[11px] text-slate-500 flex flex-col gap-0.5">
+        <span>Meta API: <strong class="text-slate-300">v21.0</strong></span>
+        <span>Account: <strong class="text-indigo-300">ana.lolo.6000@gmail.com</strong></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 mr-64 min-h-screen flex flex-col">
+    <!-- Top Bar -->
+    <header class="h-16 border-b border-slate-800/80 bg-[#0B0F19]/80 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-20">
+      <div class="flex items-center gap-3">
+        <h2 id="page-title" class="text-lg font-bold text-white">لوحة تحكم المنظومة المركزية</h2>
+        <span id="db-badge" class="text-xs px-2.5 py-1 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-medium">جاري فحص قاعدة البيانات...</span>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button onclick="openNewTenantModal()" class="gradient-btn-primary text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>إضافة عميل جديد</span>
+        </button>
+        <button onclick="refreshData()" title="تحديث البيانات" class="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="p-8 flex-1">
+      
+      <!-- ============================================================= -->
+      <!-- TAB 1: OVERVIEW -->
+      <!-- ============================================================= -->
+      <section id="tab-overview" class="tab-content space-y-6">
+        <!-- Hero Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+          <!-- Total Tenants -->
+          <div class="glass-panel glass-panel-hover p-5 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-400 mb-1">إجمالي العملاء والشركات</p>
+              <h3 id="stat-tenants" class="text-2xl font-black text-white">0</h3>
+              <p class="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-medium">
+                <i data-lucide="check-circle-2" class="w-3 h-3"></i> <span id="stat-active-tenants">0</span> عميل نشط
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <i data-lucide="users" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <!-- Total Messages -->
+          <div class="glass-panel glass-panel-hover p-5 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-400 mb-1">الرسائل المعالجة</p>
+              <h3 id="stat-messages" class="text-2xl font-black text-white">0</h3>
+              <p class="text-[11px] text-indigo-400 mt-1 flex items-center gap-1 font-medium">
+                <i data-lucide="activity" class="w-3 h-3"></i> Webhook Active
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <i data-lucide="message-square" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <!-- Auto-Reply Rate -->
+          <div class="glass-panel glass-panel-hover p-5 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-400 mb-1">نسبة الرد التلقائي</p>
+              <h3 id="stat-reply-rate" class="text-2xl font-black text-white">0%</h3>
+              <p class="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-medium">
+                <i data-lucide="zap" class="w-3 h-3"></i> استجابة فورية
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <i data-lucide="bot" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <!-- Webhook Endpoint Status -->
+          <div class="glass-panel glass-panel-hover p-5 rounded-2xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-400 mb-1">رابط الويب هوك المركزي</p>
+              <h3 class="text-sm font-bold text-white truncate max-w-[150px]">/api/webhook</h3>
+              <button onclick="copyWebhookUrl()" class="text-[11px] text-indigo-400 hover:text-indigo-300 mt-1 flex items-center gap-1 font-semibold">
+                <i data-lucide="copy" class="w-3 h-3"></i> نسخ الرابط للربط
+              </button>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <i data-lucide="webhook" class="w-6 h-6"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Architecture Card -->
+        <div class="glass-panel p-6 rounded-3xl border border-indigo-500/20 relative overflow-hidden bg-gradient-to-r from-[#121826] via-[#151D30] to-[#121826]">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div class="space-y-2 max-w-2xl">
+              <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 inline-flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-3 h-3"></i>
+                نظام إدارة واتساب السحابي المتعدد (Multi-Tenant)
+              </span>
+              <h3 class="text-xl font-bold text-white">Power of Media - Central WhatsApp Cloud Engine</h3>
+              <p class="text-sm text-slate-400 leading-relaxed">
+                يقوم النظام باستقبال جميع رسائل Webhook الخاصة بعملائك من شركة Meta على رابط مركزي واحد، ويقوم تلقائياً بتحديد الشركة المستهدفة عبر <span class="text-cyan-400 font-mono">PHONE_NUMBER_ID</span> وتطبيق قواعد الرد التلقائي الخاصة بها بشكل معزول وآمن.
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button onclick="switchTab('tenants')" class="gradient-btn-primary px-5 py-2.5 rounded-xl text-xs font-bold text-white flex items-center gap-2">
+                <i data-lucide="building" class="w-4 h-4"></i>
+                إدارة الشركات
+              </button>
+              <button onclick="switchTab('simulator')" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white flex items-center gap-2">
+                <i data-lucide="play" class="w-4 h-4"></i>
+                تجربة الشات بوت
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Stream -->
+        <div class="glass-panel p-6 rounded-3xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="activity" class="w-5 h-5 text-indigo-400"></i>
+              <h4 class="font-bold text-base text-white">آخر النشاطات والرسائل الواردة</h4>
+            </div>
+            <button onclick="switchTab('logs')" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
+              عرض السجل بالكامل <i data-lucide="arrow-left" class="w-3 h-3"></i>
+            </button>
+          </div>
+          <div id="overview-recent-logs" class="space-y-2">
+            <p class="text-xs text-slate-500 py-4 text-center">جاري تحميل أحدث الرسائل...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- TAB 2: TENANTS (CLIENTS) -->
+      <!-- ============================================================= -->
+      <section id="tab-tenants" class="tab-content hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-bold text-white">الشركات والعملاء المسجلين</h3>
+            <p class="text-xs text-slate-400">إدارة حسابات WhatsApp Business API الخاصة بكل شركة وتعيين الـ Tokens الخاصة بها</p>
+          </div>
+          <button onclick="openNewTenantModal()" class="gradient-btn-primary text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>إضافة شركة جديدة</span>
+          </button>
+        </div>
+
+        <!-- Tenants Grid -->
+        <div id="tenants-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- TAB 3: AUTO-REPLY RULES BUILDER -->
+      <!-- ============================================================= -->
+      <section id="tab-rules" class="tab-content hidden space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 class="text-xl font-bold text-white">منشئ قواعد الرد التلقائي والكلمات المفتاحية</h3>
+            <p class="text-xs text-slate-400">حدد الشركة ثم قم بإنشاء ردود نصية، أزرار تفاعلية (Interactive Buttons) أو قوائم مخصصة</p>
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <!-- Tenant Selector -->
+            <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+              <span class="text-xs text-slate-400">الشركة:</span>
+              <select id="rules-tenant-select" onchange="loadRulesForSelectedTenant()" class="bg-transparent text-xs font-bold text-indigo-300 focus:outline-none cursor-pointer">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <button onclick="openNewRuleModal()" class="gradient-btn-primary text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>إضافة قاعدة جديدة</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Rules List -->
+        <div id="rules-list-container" class="space-y-4">
+          <!-- Populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- TAB 4: WHATSAPP BOT SIMULATOR -->
+      <!-- ============================================================= -->
+      <section id="tab-simulator" class="tab-content hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-bold text-white">محاكي الشات بوت التفاعلي (WhatsApp Simulator)</h3>
+            <p class="text-xs text-slate-400">اختبر ردود الشات بوت للشركات في بيئة مطابقة تماماً لتطبيق واتساب الحقيقي</p>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+            <span class="text-xs text-slate-400">تجربة شركة:</span>
+            <select id="simulator-tenant-select" onchange="resetSimulatorChat()" class="bg-transparent text-xs font-bold text-indigo-300 focus:outline-none cursor-pointer">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <!-- Phone Mockup Container -->
+          <div class="lg:col-span-6 flex justify-center">
+            <div class="phone-mockup">
+              <!-- Phone Header -->
+              <div class="bg-[#202C33] px-4 py-3 flex items-center justify-between border-b border-[#111B21] select-none">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold text-sm">
+                    <span id="sim-avatar-letter">P</span>
+                  </div>
+                  <div>
+                    <h5 id="sim-header-name" class="text-sm font-semibold text-white truncate max-w-[150px]">Power of Media</h5>
+                    <p class="text-[11px] text-emerald-400">متصل الآن (Online)</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 text-slate-400">
+                  <button onclick="resetSimulatorChat()" title="إعادة تعيين المحادثة" class="p-1 hover:text-white"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+
+              <!-- Phone Chat Message Area -->
+              <div id="sim-chat-area" class="whatsapp-chat-bg flex-1 p-4 overflow-y-auto space-y-3">
+                <!-- Welcome system notice -->
+                <div class="text-center my-2">
+                  <span class="text-[10px] bg-[#182229] text-slate-400 px-3 py-1 rounded-full border border-slate-800">
+                    🔒 الرسائل مشفرة تماماً ومحمية
+                  </span>
+                </div>
+              </div>
+
+              <!-- Phone Input Box -->
+              <div class="bg-[#202C33] p-2 flex items-center gap-2 border-t border-[#111B21]">
+                <input id="sim-input" type="text" placeholder="اكتب رسالة للتجربة..." onkeydown="if(event.key==='Enter') sendSimulatorMessage()" class="flex-1 bg-[#2A3942] text-white text-xs px-3.5 py-2.5 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                <button onclick="sendSimulatorMessage()" class="w-9 h-9 rounded-xl bg-[#00A884] hover:bg-[#008f6f] text-white flex items-center justify-center transition-all">
+                  <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Simulator Diagnostics & Information -->
+          <div class="lg:col-span-6 space-y-5">
+            <div class="glass-panel p-6 rounded-3xl space-y-4">
+              <h4 class="font-bold text-white flex items-center gap-2 text-base">
+                <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+                لوحة فحص المحرك وقرارات الرد الذكي
+              </h4>
+              <p class="text-xs text-slate-400">
+                عند إرسال أي رسالة داخل المحاكي، يتم تمريرها إلى نفس محرك الـ Webhook الحقيقي، ويتم عرض نتيجة التقييم والـ Rule المطابق هنا مباشرة.
+              </p>
+
+              <div id="sim-diagnostics" class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs space-y-2 font-mono text-slate-300">
+                <div class="flex justify-between">
+                  <span class="text-slate-500">الحالة:</span>
+                  <span class="text-emerald-400">جاهز لاستقبال الرسائل</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">الشركة الحالية:</span>
+                  <span id="sim-diag-tenant" class="text-indigo-400">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">آخر قاعدة مطابقة:</span>
+                  <span id="sim-diag-rule" class="text-amber-400">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">نوع الرد المُنشأ:</span>
+                  <span id="sim-diag-type" class="text-cyan-400">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Trigger Shortcuts -->
+            <div class="glass-panel p-6 rounded-3xl space-y-3">
+              <h4 class="font-bold text-white text-sm">جرّب الكلمات الشائعة فوراً:</h4>
+              <div class="flex flex-wrap gap-2" id="sim-quick-keywords">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- TAB 5: MESSAGE LOGS & AUDIT TRAIL -->
+      <!-- ============================================================= -->
+      <section id="tab-logs" class="tab-content hidden space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 class="text-xl font-bold text-white">سجل الرسائل والويب هوك (Audit Trail)</h3>
+            <p class="text-xs text-slate-400">متابعة جميع الرسائل الواردة والصادرة لكل شركة مع إمكانية فحص بيانات الـ JSON الخام</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <select id="logs-filter-status" onchange="loadLogs()" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none">
+              <option value="">جميع الحالات</option>
+              <option value="replied">تم الرد (Replied)</option>
+              <option value="fallback_sent">رد احتياطي (Fallback)</option>
+              <option value="ignored">تم التجاهل (Ignored)</option>
+              <option value="failed">فشل (Failed)</option>
+            </select>
+            <button onclick="loadLogs()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              تحديث
+            </button>
+          </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="glass-panel rounded-3xl overflow-hidden border border-slate-800">
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-slate-900/90 text-slate-400 font-semibold border-b border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4">الوقت والتاريخ</th>
+                  <th class="py-3.5 px-4">الشركة (Tenant)</th>
+                  <th class="py-3.5 px-4">المرسل (Sender)</th>
+                  <th class="py-3.5 px-4">نص الرسالة الواردة</th>
+                  <th class="py-3.5 px-4">الرد الآلي المرسل</th>
+                  <th class="py-3.5 px-4">الحالة</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-body" class="divide-y divide-slate-800/60">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- TAB 6: SETTINGS & META WEBHOOK INTEGRATION -->
+      <!-- ============================================================= -->
+      <section id="tab-settings" class="tab-content hidden space-y-6">
+        <div class="space-y-1">
+          <h3 class="text-xl font-bold text-white">إعدادات الربط ونشر المشروع</h3>
+          <p class="text-xs text-slate-400">خطوات تفعيل الـ Webhook على لوحة مطوري Meta وبيانات حسابات النشر</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Meta Setup Card -->
+          <div class="glass-panel p-6 rounded-3xl space-y-5 border border-indigo-500/20">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <i data-lucide="webhook" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-white text-sm">بيانات الربط مع Meta Developer Portal</h4>
+                <p class="text-[11px] text-slate-400">ضع هذه القيم في إعدادات WhatsApp Webhook داخل تطبيق Meta</p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Callback URL (رابط الويب هوك):</label>
+                <div class="flex items-center gap-2">
+                  <input id="setting-webhook-url" type="text" readonly class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-cyan-400 focus:outline-none">
+                  <button onclick="copyElementText('setting-webhook-url')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Verify Token (رمز التحقق):</label>
+                <div class="flex items-center gap-2">
+                  <input id="setting-verify-token" type="text" readonly value="power_of_media_verify_token_2026" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-indigo-400 focus:outline-none">
+                  <button onclick="copyElementText('setting-verify-token')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-800/40 text-xs space-y-2 text-indigo-200">
+              <p class="font-bold flex items-center gap-1.5">
+                <i data-lucide="info" class="w-4 h-4 text-indigo-400"></i>
+                خطوات تفعيل الـ Webhook في Meta:
+              </p>
+              <ol class="list-decimal list-inside space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                <li>ادخل على <a href="https://developers.facebook.com/apps" target="_blank" class="text-cyan-400 underline">Meta for Developers</a> واختر تطبيقك.</li>
+                <li>من القائمة الجانبية اختر <strong>WhatsApp > Configuration</strong>.</li>
+                <li>في قسم Webhook اضغط <strong>Edit</strong> وضع الـ Callback URL و Verify Token أعلاه.</li>
+                <li>اضغط <strong>Verify and Save</strong> ثم اضغط <strong>Manage Webhook fields</strong> وقم بتفعيل خيار <strong>messages</strong>.</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Account & Deployment Info -->
+          <div class="glass-panel p-6 rounded-3xl space-y-5 border border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <i data-lucide="cloud-upload" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-white text-sm">بيانات حساب النشر (GitHub & Vercel)</h4>
+                <p class="text-[11px] text-slate-400">الحساب المعتمد لنشر السيرفر والمنظومة</p>
+              </div>
+            </div>
+
+            <div class="space-y-2.5 text-xs text-slate-300">
+              <div class="flex justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-400">حساب النشر (Email):</span>
+                <span class="font-bold text-indigo-300 font-mono">ana.lolo.6000@gmail.com</span>
+              </div>
+              <div class="flex justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-400">الجهة المالكة:</span>
+                <span class="font-bold text-white">Power of Media Agency</span>
+              </div>
+              <div class="flex justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-400">التوافق:</span>
+                <span class="font-bold text-emerald-400">Node.js Express + Vercel Serverless</span>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+              <h5 class="font-bold text-white flex items-center gap-1.5">
+                <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
+                إعداد قاعدة بيانات Supabase (SQL Script):
+              </h5>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                الملف <span class="text-indigo-400 font-mono">database/schema.sql</span> جاهز تماماً. يمكنك نسخه وتشغيله بنقرة واحدة داخل Supabase SQL Editor لإنشاء الجداول وسياسات الأمان RLS.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: ADD / EDIT TENANT -->
+  <!-- ============================================================= -->
+  <div id="tenant-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-xl p-6 rounded-3xl space-y-5 max-h-[90vh] overflow-y-auto border border-indigo-500/30">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h4 id="tenant-modal-title" class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="building-2" class="w-5 h-5 text-indigo-400"></i>
+          إضافة شركة / عميل جديد
+        </h4>
+        <button onclick="closeTenantModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="tenant-form" onsubmit="saveTenant(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="form-tenant-id">
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">اسم الشركة (Company Name) *</label>
+          <input type="text" id="form-tenant-name" required placeholder="مثال: مطعم الأصالة / شركة الفرسان" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">WhatsApp Phone Number ID *</label>
+            <input type="text" id="form-tenant-phone-id" required placeholder="مثال: 102938475610293" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">WABA ID (اختياري)</label>
+            <input type="text" id="form-tenant-waba-id" placeholder="مثال: 987654321098765" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-semibold text-slate-300">Permanent Access Token *</label>
+            <button type="button" onclick="testMetaCredentials()" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+              اختبار الصلاحية مع Meta الآن
+            </button>
+          </div>
+          <textarea id="form-tenant-token" required rows="2" placeholder="EAAG..." class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-indigo-500"></textarea>
+          <div id="token-test-feedback" class="mt-1 hidden text-[11px]"></div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">رسالة الترحيب الأولى (Welcome Reply)</label>
+          <textarea id="form-tenant-welcome" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-indigo-500" placeholder="مرحباً بك في {company_name}! كيف يمكننا خدمتك اليوم؟"></textarea>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">الرد الاحتياطي التلقائي (Fallback Reply)</label>
+          <textarea id="form-tenant-fallback" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-indigo-500" placeholder="شكراً لتواصلك معنا. لم نتمكن من فهم طلبك بدقة، وسيتواصل معك أحد ممثلينا قريباً."></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <button type="button" onclick="closeTenantModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60">إلغاء</button>
+          <button type="submit" class="gradient-btn-primary px-6 py-2 rounded-xl text-white font-bold">حفظ العميل</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: ADD / EDIT AUTO-REPLY RULE -->
+  <!-- ============================================================= -->
+  <div id="rule-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-lg p-6 rounded-3xl space-y-5 max-h-[90vh] overflow-y-auto border border-cyan-500/30">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h4 id="rule-modal-title" class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="bot" class="w-5 h-5 text-cyan-400"></i>
+          إنشاء قاعدة رد تلقائي جديدة
+        </h4>
+        <button onclick="closeRuleModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="rule-form" onsubmit="saveRule(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="form-rule-id">
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">الكلمات المفتاحية (Keywords) * <span class="text-slate-500 font-normal">(افصل بين الكلمات بفاصلة)</span></label>
+          <input type="text" id="form-rule-keyword" required placeholder="مثال: اسعار, الباقات, pricing, تكلفة" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">نوع المطابقة (Match Type)</label>
+            <select id="form-rule-match-type" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-cyan-500">
+              <option value="contains">يحتوي الكلمة (Contains)</option>
+              <option value="exact">تطابق تام (Exact Match)</option>
+              <option value="startsWith">يبدأ بـ (Starts With)</option>
+              <option value="regex">تعبير نمطي (Regex Pattern)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">نوع الرد (Reply Type)</label>
+            <select id="form-rule-reply-type" onchange="toggleReplyTypeFields()" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-cyan-500">
+              <option value="text">نص عادي (Text)</option>
+              <option value="interactive_buttons">أزرار تفاعلية (Interactive Buttons)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">نص الرد الآلي (Reply Body) *</label>
+          <textarea id="form-rule-body" required rows="3" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-cyan-500" placeholder="اكتب نص الرد الذي سيتم إرساله للعميل..."></textarea>
+        </div>
+
+        <!-- Buttons fields for Interactive -->
+        <div id="rule-buttons-container" class="hidden space-y-2 p-3 rounded-2xl bg-slate-900/70 border border-slate-800">
+          <label class="block font-semibold text-cyan-400">الأزرار التفاعلية (حتى 3 أزرار):</label>
+          <div class="space-y-2">
+            <input type="text" id="form-btn-1" placeholder="زر 1: مثلاً 'معرفة الأسعار'" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs">
+            <input type="text" id="form-btn-2" placeholder="زر 2: مثلاً 'طلب استشارة'" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs">
+            <input type="text" id="form-btn-3" placeholder="زر 3: مثلاً 'التحدث مع موظف'" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <button type="button" onclick="closeRuleModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60">إلغاء</button>
+          <button type="submit" class="gradient-btn-primary px-6 py-2 rounded-xl text-white font-bold">حفظ القاعدة</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Main JavaScript Controller -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
